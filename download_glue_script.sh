@@ -19,10 +19,18 @@ fi
 
 echo -e "${YELLOW}Using AWS Account ID: ${ACCOUNT_ID}${NC}"
 
+# Check for the bucket name from variables.tf
+BUCKET_NAME=$(grep -A 2 'variable.*s3_bucket_name' variables.tf 2>/dev/null | grep default | sed 's/.*default.*"\(.*\)".*/\1/')
+
+# If not found in variables.tf, use the default
+if [ -z "$BUCKET_NAME" ]; then
+    echo -e "${YELLOW}Using default bucket name${NC}"
+    BUCKET_NAME="media-datalake-iceberg-demo"
+fi
+
+echo -e "${YELLOW}Using bucket name: ${BUCKET_NAME}${NC}"
+
 # Parameters
-PROJECT_NAME="media-analytics"
-ENVIRONMENT="dev"
-BUCKET_NAME="${PROJECT_NAME}-datalake-${ENVIRONMENT}"
 SCRIPT_S3_PATH="scripts/generate_media_data.py"
 LOCAL_SCRIPT_DIR="scripts"
 LOCAL_SCRIPT_PATH="${LOCAL_SCRIPT_DIR}/generate_media_data.py"
@@ -40,7 +48,7 @@ if [ $? -eq 0 ]; then
     echo -e "${GREEN}Successfully downloaded Glue script to ${LOCAL_SCRIPT_PATH}${NC}"
 else
     echo -e "${RED}Failed to download Glue script.${NC}"
-    echo -e "${YELLOW}Creating an empty script file. You'll need to add the content manually.${NC}"
+    echo -e "${YELLOW}Creating a template script for you to customize.${NC}"
     
     # Create a minimal template script
     cat > "${LOCAL_SCRIPT_PATH}" << 'EOL'
@@ -55,22 +63,22 @@ from pyspark.sql.types import *
 import datetime
 import random
 
-# Get job parameters
+# Job parameters
 args = getResolvedOptions(sys.argv, ['JOB_NAME', 'output-bucket', 'output-path'])
 
-# Initialize Glue context
+# Set up Glue context
 sc = SparkContext()
 glueContext = GlueContext(sc)
 spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args['JOB_NAME'], args)
 
-# TODO: Replace this with the actual script logic 
-# This is a placeholder for the script that exists in your AWS environment
+# Replace this with your actual ETL logic
+# The script should match what's in your AWS environment
 
-# End the job
+# Complete the job
 job.commit()
 EOL
 
-    echo -e "${YELLOW}Created a template script. Please update it with your actual script content.${NC}"
+    echo -e "${YELLOW}Template created. Update it with your actual script logic.${NC}"
 fi 

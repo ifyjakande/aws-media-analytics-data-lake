@@ -1,7 +1,7 @@
 variable "aws_account_id" {
   description = "AWS Account ID"
   type        = string
-  default = "445567080004"  # This will be updated by the import script
+  default     = ""  # Will be filled by the import script
 }
 
 variable "region" {
