@@ -77,18 +77,4 @@ resource "aws_s3_object" "temp_folder" {
   key    = "temp/"
   source = "/dev/null"  # Empty object
   content_type = "application/x-directory"
-}
-
-# The redshift-stage_$folder$ appears to be a system-generated marker and doesn't need to be managed by Terraform
-
-# Note: To manage the actual script file, you would typically use a local file resource.
-# Since we don't have access to the original file in this session, it would need to be 
-# uploaded manually or via another mechanism. Here's how you'd define it if you had the
-# file locally:
-#
-# resource "aws_s3_object" "generate_synthetic_data_script" {
-#   bucket = aws_s3_bucket.data_lake.id
-#   key    = "scripts/generate_synthetic_data.py"
-#   source = "path/to/local/generate_synthetic_data.py"  # Local path to the script file
-#   etag   = filemd5("path/to/local/generate_synthetic_data.py")
-# } 
+} 
