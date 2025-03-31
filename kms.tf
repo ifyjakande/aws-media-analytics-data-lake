@@ -10,8 +10,10 @@ resource "aws_kms_key" "media_data_lake" {
   }
 }
 
+# Using the existing alias name format (without hyphens between "data" and "lake")
+# to avoid having duplicate aliases for the same key
 resource "aws_kms_alias" "media_data_lake" {
-  name          = "alias/media-data-lake-key"
+  name          = "alias/media-datalake-key"
   target_key_id = aws_kms_key.media_data_lake.key_id
   
   lifecycle {
