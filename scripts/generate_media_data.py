@@ -1,0 +1,159 @@
+import boto3
+import json
+import random
+import uuid
+from datetime import datetime, timedelta
+import time
+
+s3_client = boto3.client('s3')
+BUCKET_NAME = 'media-datalake-iceberg-demo'
+
+# Sample data generation parameters
+content_types = ['movie', 'series', 'documentary', 'music_video', 'short_film']
+genres = ['action', 'comedy', 'drama', 'science_fiction', 'horror', 'thriller', 'romance', 'animation']
+ratings = ['G', 'PG', 'PG-13', 'R', 'NC-17', 'TV-Y', 'TV-G', 'TV-PG', 'TV-14', 'TV-MA']
+platforms = ['web', 'mobile_ios', 'mobile_android', 'smart_tv', 'gaming_console']
+countries = ['US', 'UK', 'CA', 'AU', 'FR', 'DE', 'JP', 'BR', 'IN', 'MX']
+
+# Generate content metadata
+def generate_content_metadata(num_records=100):
+    records = []
+    for i in range(1, num_records + 1):
+        content_id = f"CONT{i:06d}"
+        is_series = random.choice(content_types) == 'series'
+        
+        record = {
+            'content_id': content_id,
+            'title': f"Sample Media Title {i}",
+            'content_type': random.choice(content_types),
+            'genre': random.choice(genres),
+            'release_date': (datetime.now() - timedelta(days=random.randint(1, 1000))).strftime('%Y-%m-%d'),
+            'rating': random.choice(ratings),
+            'duration_minutes': random.randint(1, 180),
+            'is_original': random.choice([True, False]),
+            'language': random.choice(['en', 'es', 'fr', 'de', 'ja', 'ko', 'hi']),
+            'creator': f"Creator Studio {random.randint(1, 20)}",
+            'description': f"This is a sample description for content {content_id}.",
+            'tags': random.sample(['trending', 'popular', 'exclusive', 'award_winning', 'new_release'], random.randint(1, 3))
+        }
+        
+        if is_series:
+            record['season_count'] = random.randint(1, 5)
+            record['episode_count'] = random.randint(8, 24) * record['season_count']
+        
+        records.append(record)
+    
+    return records
+
+# Generate viewing data
+def generate_viewing_data(content_metadata, num_records=1000):
+    records = []
+    
+    for i in range(num_records):
+        content = random.choice(content_metadata)
+        start_time = datetime.now() - timedelta(days=random.randint(0, 30), hours=random.randint(0, 23), minutes=random.randint(0, 59))
+        
+        view_duration = random.randint(1, int(content.get('duration_minutes', 90)))
+        if content.get('content_type') == 'series':
+            # For series, specify season and episode
+            season = random.randint(1, content.get('season_count', 1))
+            episode = random.randint(1, content.get('episode_count', 10) // content.get('season_count', 1))
+            content_specific_id = f"{content['content_id']}_S{season:02d}E{episode:02d}"
+        else:
+            content_specific_id = content['content_id']
+        
+        record = {
+            'view_id': str(uuid.uuid4()),
+            'user_id': f"USER{random.randint(1, 10000):07d}",
+            'content_id': content_specific_id,
+            'view_date': start_time.strftime('%Y-%m-%d'),
+            'start_time': start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'view_duration_minutes': view_duration,
+            'completion_percentage': min(100, int((view_duration / content.get('duration_minutes', 90)) * 100)),
+            'platform': random.choice(platforms),
+            'device_type': random.choice(['TV', 'Phone', 'Tablet', 'Computer', 'Console']),
+            'location': random.choice(countries),
+            'streaming_quality': random.choice(['SD', 'HD', 'FHD', '4K']),
+            'is_downloaded': random.choice([True, False])
+        }
+        
+        records.append(record)
+    
+    return records
+
+# Generate engagement data
+def generate_engagement_data(viewing_data, num_records=500):
+    records = []
+    
+    for _ in range(num_records):
+        view = random.choice(viewing_data)
+        
+        # Not all views have engagement
+        if random.random() < 0.7:  # 70% chance of engagement
+            record = {
+                'engagement_id': str(uuid.uuid4()),
+                'view_id': view['view_id'],
+                'user_id': view['user_id'],
+                'content_id': view['content_id'],
+                'engagement_date': view['view_date'],
+                'rating': random.randint(1, 5) if random.random() < 0.3 else None,
+                'liked': random.choice([True, False, None]),
+                'added_to_list': random.choice([True, False, None]),
+                'shared': random.choice([True, False, None]),
+                'comment_added': random.choice([True, False, None]),
+                'engagement_type': random.choice(['like', 'rate', 'share', 'comment', 'add_to_list'])
+            }
+            
+            records.append(record)
+    
+    return records
+
+def main():
+    # Generate synthetic data
+    content_data = generate_content_metadata(200)
+    viewing_data = generate_viewing_data(content_data, 2000)
+    engagement_data = generate_engagement_data(viewing_data, 1000)
+    
+    # Save to S3
+    for dataset, name in [
+        (content_data, 'content_metadata'), 
+        (viewing_data, 'viewing_data'), 
+        (engagement_data, 'engagement_data')
+    ]:
+        # Write as newline-delimited JSON (one JSON object per line)
+        # This change will fix the schema detection issue
+        ndjson_content = '\n'.join([json.dumps(record) for record in dataset])
+        
+        s3_client.put_object(
+            Bucket=BUCKET_NAME,
+            Key=f'raw/{name}/batch_date={datetime.now().strftime("%Y-%m-%d")}/{name}.json',
+            Body=ndjson_content
+        )
+        
+        # CSV format (simulating a different source)
+        if name == 'viewing_data':
+            # First determine all possible keys across all records
+            all_keys = set()
+            for item in dataset:
+                all_keys.update(item.keys())
+            
+            # Convert keys to a sorted list for consistent column order
+            ordered_keys = sorted(list(all_keys))
+            
+            # Create CSV header
+            csv_content = ",".join(ordered_keys) + "\n"
+            
+            # Add data rows
+            for item in dataset:
+                csv_content += ",".join([str(item.get(k, '')) for k in ordered_keys]) + "\n"
+            
+            s3_client.put_object(
+                Bucket=BUCKET_NAME,
+                Key=f'raw/{name}_csv/batch_date={datetime.now().strftime("%Y-%m-%d")}/{name}.csv',
+                Body=csv_content
+            )
+    
+    return "Successfully generated synthetic media data"
+
+if __name__ == "__main__":
+    main()
