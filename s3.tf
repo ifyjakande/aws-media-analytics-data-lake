@@ -1,3 +1,8 @@
+/*
+ * Note: Despite "iceberg" in the bucket name, this project doesn't actually use
+ * Apache Iceberg table format. The name is just part of the naming convention.
+ */
+
 resource "aws_s3_bucket" "data_lake" {
   bucket = "media-datalake-iceberg-demo"
   
